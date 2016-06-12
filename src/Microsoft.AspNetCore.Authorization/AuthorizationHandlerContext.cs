@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
 
 namespace Microsoft.AspNetCore.Authorization
@@ -13,10 +13,6 @@ namespace Microsoft.AspNetCore.Authorization
     /// </summary>
     public class AuthorizationHandlerContext
     {
-        private HashSet<IAuthorizationRequirement> _pendingRequirements;
-        private bool _failCalled;
-        private bool _succeedCalled;
-
         /// <summary>
         /// Creates a new instance of <see cref="AuthorizationHandlerContext"/>.
         /// </summary>
@@ -36,7 +32,8 @@ namespace Microsoft.AspNetCore.Authorization
             Requirements = requirements;
             User = user;
             Resource = resource;
-            _pendingRequirements = new HashSet<IAuthorizationRequirement>(requirements);
+            FailedRequirements = new ConcurrentQueue<IAuthorizationRequirement>();
+            SucceededRequirements = new ConcurrentQueue<IAuthorizationRequirement>();
         }
 
         /// <summary>
@@ -54,45 +51,23 @@ namespace Microsoft.AspNetCore.Authorization
         /// </summary>
         public object Resource { get; }
 
-        /// <summary>
-        /// Gets the requirements that have not yet been marked as succeeded.
-        /// </summary>
-        public IEnumerable<IAuthorizationRequirement> PendingRequirements { get { return _pendingRequirements; } }
+        public ConcurrentQueue<IAuthorizationRequirement> FailedRequirements { get; }
 
-        /// <summary>
-        /// Flag indicating whether the current authorization processing has failed.
-        /// </summary>
-        public bool HasFailed { get { return _failCalled; } }
+        public ConcurrentQueue<IAuthorizationRequirement> SucceededRequirements { get; }
 
-        /// <summary>
-        /// Flag indicating whether the current authorization processing has succeeded.
-        /// </summary>
-        public bool HasSucceeded
+        public void Fail(IAuthorizationRequirement requirement = null)
         {
-            get
-            {
-                return !_failCalled && _succeedCalled && !PendingRequirements.Any();
-            }
+            FailedRequirements.Enqueue(requirement);
         }
 
-        /// <summary>
-        /// Called to indicate <see cref="AuthorizationHandlerContext.HasSucceeded"/> will
-        /// never return true, even if all requirements are met.
-        /// </summary>
-        public void Fail()
-        {
-            _failCalled = true;
-        }
-
-        /// <summary>
-        /// Called to mark the specified <paramref name="requirement"/> as being
-        /// successfully evaluated.
-        /// </summary>
-        /// <param name="requirement">The requirement whose evaluation has succeeded.</param>
         public void Succeed(IAuthorizationRequirement requirement)
         {
-            _succeedCalled = true;
-            _pendingRequirements.Remove(requirement);
+            if (requirement == null)
+            {
+                throw new ArgumentNullException(nameof(requirement));
+            }
+
+            SucceededRequirements.Enqueue(requirement);
         }
     }
 }

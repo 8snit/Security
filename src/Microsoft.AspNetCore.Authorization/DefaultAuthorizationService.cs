@@ -19,14 +19,16 @@ namespace Microsoft.AspNetCore.Authorization
         private readonly IAuthorizationPolicyProvider _policyProvider;
         private readonly IList<IAuthorizationHandler> _handlers;
         private readonly ILogger _logger;
+        private readonly IAuthorizationEvaluator _authorizationEvaluator;
 
         /// <summary>
         /// Creates a new instance of <see cref="DefaultAuthorizationService"/>.
         /// </summary>
         /// <param name="policyProvider">The <see cref="IAuthorizationPolicyProvider"/> used to provide policies.</param>
         /// <param name="handlers">The handlers used to fulfill <see cref="IAuthorizationRequirement"/>s.</param>
-        /// <param name="logger">The logger used to log messages, warnings and errors.</param>  
-        public DefaultAuthorizationService(IAuthorizationPolicyProvider policyProvider, IEnumerable<IAuthorizationHandler> handlers, ILogger<DefaultAuthorizationService> logger)
+        /// <param name="logger">The logger used to log messages, warnings and errors.</param>
+        /// <param name="authorizationEvaluator"></param>  
+        public DefaultAuthorizationService(IAuthorizationPolicyProvider policyProvider, IEnumerable<IAuthorizationHandler> handlers, ILogger<DefaultAuthorizationService> logger, IAuthorizationEvaluator authorizationEvaluator)
         {
             if (policyProvider == null)
             {
@@ -40,10 +42,15 @@ namespace Microsoft.AspNetCore.Authorization
             {
                 throw new ArgumentNullException(nameof(logger));
             }
+            if (authorizationEvaluator == null)
+            {
+                throw new ArgumentNullException(nameof(authorizationEvaluator));
+            }
 
             _handlers = handlers.ToArray();
             _policyProvider = policyProvider;
             _logger = logger;
+            _authorizationEvaluator = authorizationEvaluator;
         }
 
         /// <summary>
@@ -69,7 +76,7 @@ namespace Microsoft.AspNetCore.Authorization
                 await handler.HandleAsync(authContext);
             }
 
-            if (authContext.HasSucceeded)
+            if (_authorizationEvaluator.HasSucceeded(authContext))
             {
                 _logger.UserAuthorizationSucceeded(GetUserNameForLogging(user));
                 return true;
